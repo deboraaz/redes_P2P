@@ -5,9 +5,14 @@
 #include <arpa/inet.h>
 #include <pthread.h>
 
+#define MAX_FILES_PEER 10
+#define FILENAME_LEN 100
+
 typedef struct {
     char ip[32];
     int port;
+    char files_shared[MAX_FILES_PEER][FILENAME_LEN];
+    int file_count;
 } Peer;
 
 // Função para solicitar a lista de Pares do Tracker
