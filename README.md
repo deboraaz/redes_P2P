@@ -19,24 +19,6 @@ Incrementos:
 
 ================================================================
 
-melhorar:
-- armazenamento dinamico!
-
-como rodar ate agora:
-    ./tracker 5000
-    ./peer 127.0.0.1 5000 6001
-    ./peer 127.0.0.1 5000 6002
-
-próximos passos:
-ok definir quais arquivos usar
-- associar aruqivos aos pares (como associar?)
-
-- descoberta: par pede ao tracker quais pares tem o arquivo x
-
-- fragmentação do arquivo
-- par inicia N conexoes 
-- par recebe N fragmentos
-- par reconstrói arquivo
 
 ================================================================
 EXPLICACOES
@@ -51,14 +33,29 @@ receber endereco - IP - lista de arquivos que ele tem acesso
 ================================================================
 ===================== O QUE O CODIGO JA FAZ ====================
 ================================================================
-cria os pares 
+1-cria pastas e associa arquvos para cada par (melhora isso depois - passar arquivos na entrada e ele cria a pasta com eles)
+
+2-inicia o tracker
+
+3-inicia os pares e manda informações para o tracker
+================================================================
+===================== PROXIMOS PASSOS ====================
+================================================================
+melhorar a associacao de arquivos (deixar para o final)
+
+- descoberta: par pede ao tracker quais pares tem o arquivo x
+
+- fragmentação do arquivo
+- par realiza N conexoes com N peers que tem o arquivo x
+- par recebe N fragmentos
+- par reconstrói arquivo
 
 ================================================================
 ========================= COMO COMPILAR ========================
 ================================================================
 
 exemplo:
-
+python3 setup_files.pyt
 terminal 1: python3 tracker.py
 terminal 2: python3 peer.py 127.0.0.1 6001 peers_data/peer_6001
 terminal 3: python3 peer.py 127.0.0.1 6002 peers_data/peer_6002
