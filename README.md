@@ -60,8 +60,8 @@ cria os pares
 exemplo:
 
 terminal 1: python3 tracker.py
-terminal 2: python peer.py 127.0.0.1 6001 peers_data/peer_6001
-terminal 3: python peer.py 127.0.0.1 6002 peers_data/peer_6002
+terminal 2: python3 peer.py 127.0.0.1 6001 peers_data/peer_6001
+terminal 3: python3 peer.py 127.0.0.1 6002 peers_data/peer_6002
 
 
 ================================================================
