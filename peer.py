@@ -8,23 +8,38 @@ from pathlib import Path # Importar Path para manipulação de caminhos
 
 import sys # para pegar argumentos da linha de comando
 
+#bibliotecas adicionadas para manipulação de arquivos em blocos
+import math
+import queue
+
+#para o uso do heartbeat
+import time
+
 # informacoes do tracker (globais pra nao precisar ficar repetindo)
 TRACKER_IP = '127.0.0.1'
 TRACKER_PORT = 5000
+TAM_CHUNK = 50 #tamanho pequeno pra testar com arquivos pequenos e ter pelo menos 3 chunks
+
+#TAM_CHUNK = 4096 # tam dos chunks (blocos) do arquivo a serem enviados
 
 class Peer:
     # Objeto: Representa um peer na rede P2P, capaz de se registrar com o tracker e obter a lista de outros peers
     #recebera o caminho dos arquivos na hora do cadastro
 
     def __init__(self, peer_ip: str, peer_port: int, data_dir_path: str):
+        #informacoes dos dados do proprio peer
+        self.peer_ip = peer_ip
+        self.peer_port = peer_port
+
         #informacoes gerais da rede
         self.tracker_ip = TRACKER_IP
         self.tracker_port = TRACKER_PORT
         self.peers_list = [] #lista de pares na rede
+        self.search_results = [] # armazena resultados da busca por arquivos
 
-        #informacoes dos dados do proprio peer
-        self.peer_ip = peer_ip
-        self.peer_port = peer_port
+        self.server_thread = threading.Thread(target=self.file_server) #thread para o servidor de arquivos
+        self.server_thread.daemon = True
+        self.server_thread.start()
 
         self.data_dir = Path(data_dir_path)
         # lista de arquivos que o peer possui
@@ -33,6 +48,77 @@ class Peer:
 
         # flag para desligar o peer quando o usuário digitar "exit"
         self.running = True
+
+    # thread para enviar heartbeats ao tracker periodicamente (pra confirmar que esta ativo na rede)
+    def heartbeat_loop(self):
+        while True:
+            try:
+                sock = socket.socket(...)
+                sock.connect((TRACKER_IP, TRACKER_PORT))
+                sock.sendall(f"HEARTBEAT {self.peer_ip} {self.peer_port}".encode())
+                sock.close()
+            except:
+                pass
+            time.sleep(10) # envia heartbeat a cada 10 segundos
+
+
+    def file_server(self):
+        # Servidor para compartilhar arquivos com outros peers
+        server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server_socket.bind((self.peer_ip, self.peer_port))
+        server_socket.listen(5)
+
+        print(f"[PEER] Servidor de arquivos iniciado em {self.peer_ip}:{self.peer_port}. Aguardando conexões...")
+
+        while True:
+            try:
+                client_socket, client_address = server_socket.accept()
+                print(f"[PEER] Conexão recebida do peer: {client_address}")
+
+                handler_thread = threading.Thread(target=self.handle_file_request, args=(client_socket, client_address))
+                handler_thread.start()
+            except Exception as e:
+                print(f"[PEER] Erro ao aceitar conexão: {e}")
+        
+    def handle_file_request(self, client_socket, client_address):
+        # Lida com a requisição de arquivo de outro peer
+        try:
+            data = client_socket.recv(1024).decode('utf-8').strip()
+            print(f"[PEER] Requisição recebida de {client_address}: {data}")
+
+            parts = data.split()
+
+            if parts[0] == "GET":
+                filename = parts[1]
+                offset = int(parts[2])
+                size = int(parts[3])
+                file_path = self.data_dir / filename
+
+                if not file_path.exists():
+                    response = "ERROR: Arquivo não encontrado"
+                    client_socket.sendall(response.encode('utf-8'))
+                    return
+                with open(file_path, 'rb') as f:
+                    if size == 0:  
+                        # pedido especial: só retornar o tamanho do arquivo
+                        file_size = os.path.getsize(file_path)
+                        client_socket.sendall(str(file_size).encode('utf-8'))
+                        print(f"[PEER] Enviado tamanho de {filename}: {file_size} bytes para {client_address}")
+                        return
+
+                    # pedido normal: enviar chunk
+                    f.seek(offset)
+                    chunk = f.read(size)
+                    client_socket.sendall(chunk)
+                    print(f"[PEER] Enviado chunk offset={offset} size={size} para {client_address}")
+
+                client_socket.sendall(chunk)
+                print(f"[PEER] Enviado arquivo {filename} para {client_address}")
+                    
+        except Exception as e:
+            print(f"[PEER] Erro ao lidar com requisição de {client_address}: {e}")
+        finally:
+            client_socket.close()
 
     def connect_to_tracker(self):
         # Conecta ao tracker para registrar o peer
@@ -84,6 +170,7 @@ class Peer:
             for peer in self.peers_list:
                 print(f" - {peer}")
         elif parts[0] == "search":
+            # Busca por arquivos na rede
             if len(parts) < 2:
                 print("[PEER] Uso: search <file_name>")
                 return
@@ -92,8 +179,109 @@ class Peer:
             print(f"[PEER] Buscando por arquivos: {file_name}")
             
             self.request_file_peers(file_name)
+        elif parts[0] == "download":
+            if len(parts) < 2:
+                print("[PEER] Uso: download <file_name>")
+                return
+
+            file_name = parts[1]
+
+            # Verifica se já existe resultado de busca
+            if not hasattr(self, "search_results") or len(self.search_results) == 0:
+                print("[PEER] Nenhum resultado de busca. Use 'search <arquivo>' antes.")
+                return
+
+            # Pega o primeiro peer que tem o arquivo
+            target = self.search_results[0]
+            target_ip, target_port = target.split(":")
+
+            print(f"[PEER] Baixando {file_name} de {target_ip}:{target_port} ...")
+
+            self.download_file(file_name, target_ip, int(target_port))
+            return
+
         else:
             print(f"[PEER] Comando desconhecido: {command}")
+
+    #ENTENDER ESSA FUNCAO!!!!! É UMA DAS MAIS IMPORTANTES
+    def download_file(self, file_name, peer_ip, peer_port):
+        import math
+        import queue
+
+        peers = self.search_results[:]  # lista de peers que têm o arquivo
+        if not peers:
+            print("[PEER] Nenhum peer disponível para baixar.")
+            return
+
+        # 1 — Descobrir tamanho do arquivo (primeiro peer)
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.connect((peer_ip, peer_port))
+            sock.sendall(f"GET {file_name} 0 0".encode())
+            size = int(sock.recv(32).decode())
+            sock.close()
+        except:
+            print("[PEER] Erro ao obter tamanho do arquivo.")
+            return
+
+        num_chunks = math.ceil(size / TAM_CHUNK)
+        print(f"[PEER] Arquivo tem {size} bytes. Dividido em {num_chunks} chunks.")
+
+        # 2 — Criar buffer final
+        final_data = [None] * num_chunks
+
+        # 3 — Fila de chunks
+        q = queue.Queue()
+        for i in range(num_chunks):
+            q.put(i)
+
+        # 4 — Worker de download
+        def worker(peer_addr):
+            ip, port = peer_addr.split(":")
+            port = int(port)
+
+            while not q.empty():
+                try:
+                    idx = q.get_nowait()
+                except:
+                    return
+
+                offset = idx * TAM_CHUNK
+                size_request = TAM_CHUNK
+
+                try:
+                    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    s.connect((ip, port))
+                    s.sendall(f"GET {file_name} {offset} {size_request}".encode())
+                    data = s.recv(size_request)
+                    s.close()
+
+                    final_data[idx] = data
+                    print(f"[CHUNK] Recebido chunk {idx} de {ip}:{port}")
+
+                except Exception as e:
+                    print(f"[ERRO] Falha ao baixar chunk {idx} de {ip}:{port}: {e}")
+                    q.put(idx)  # devolve o chunk pra fila
+
+        # 5 — Criar threads (1 por peer)
+        threads = []
+        for peer_addr in peers:
+            t = threading.Thread(target=worker, args=(peer_addr,))
+            t.start()
+            threads.append(t)
+
+        # 6 — Esperar threads terminarem
+        for t in threads:
+            t.join()
+
+        # 7 — Reconstruir arquivo
+        save_path = self.data_dir / file_name
+        with open(save_path, "wb") as f:
+            for chunk in final_data:
+                if chunk:
+                    f.write(chunk)
+
+        print(f"[PEER] Download completo: {file_name}")
 
     def request_file_peers(self, file_name):
         print(f"[PEER] Requisitando lista de peers que possuem o arquivo: {file_name}")
@@ -108,6 +296,13 @@ class Peer:
                 # Recebe a resposta do tracker
                 resp = sock.recv(1024).decode('utf-8').strip()
                 print(f"[Tracker -> PEER] Resposta: {resp}")
+
+                # Salva os peers que possuem o arquivo (sera usado depois para baixar o arquivo)
+                if resp != "NAO ENCONTRADO":
+                    self.search_results = resp.split(",")
+                else:
+                    self.search_results = []
+
 
                 # Aqui você pode processar a resposta e atualizar a lista de peers
                 #self.peers_list = resp.split(",") if resp else []
