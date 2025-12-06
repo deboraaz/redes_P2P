@@ -51,6 +51,10 @@ ok descoberta: par pede ao tracker quais pares tem o arquivo x
 - par recebe N fragmentos
 - par reconstrói arquivo
 
+✔ registra no tracker
+✔ envia comandos para o tracker
+✖ ainda NÃO aceita conexões de outros peers
+
 ================================================================
 ========================= COMO COMPILAR ========================
 ================================================================
