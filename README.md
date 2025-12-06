@@ -43,7 +43,8 @@ receber endereco - IP - lista de arquivos que ele tem acesso
 ================================================================
 melhorar a associacao de arquivos (deixar para o final)
 
-- descoberta: par pede ao tracker quais pares tem o arquivo x
+ok adicionar um canal de comunicacao com o tracker
+ok descoberta: par pede ao tracker quais pares tem o arquivo x
 
 - fragmentação do arquivo
 - par realiza N conexoes com N peers que tem o arquivo x
@@ -55,7 +56,7 @@ melhorar a associacao de arquivos (deixar para o final)
 ================================================================
 
 exemplo:
-python3 setup_files.pyt
+python3 setup_files.py
 terminal 1: python3 tracker.py
 terminal 2: python3 peer.py 127.0.0.1 6001 peers_data/peer_6001
 terminal 3: python3 peer.py 127.0.0.1 6002 peers_data/peer_6002
@@ -65,4 +66,6 @@ terminal 3: python3 peer.py 127.0.0.1 6002 peers_data/peer_6002
 ========================= DUVIDAS ========================
 ================================================================
 
-sera q é melhor eu passar os arquivos em vez de passar o "peers_data/peer_601"?
+sera q é melhor eu passar os arquivos em vez de passar o "peers_data/peer_601"? sim
+
+quando eu busco um arquivo o tracker resposde de todos os pares (inclusive aqueles que ja estao desconectados)??????

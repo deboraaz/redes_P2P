@@ -31,6 +31,9 @@ class Peer:
         self.processed_files = [f.name for f in self.data_dir.iterdir() if f.is_file()]
         print("[PEER]: IP {} : Porta {} : Arquivos {}".format(self.peer_ip, self.peer_port, self.processed_files))
 
+        # flag para desligar o peer quando o usuário digitar "exit"
+        self.running = True
+
     def connect_to_tracker(self):
         # Conecta ao tracker para registrar o peer
 
@@ -39,13 +42,77 @@ class Peer:
                 sock.connect((self.tracker_ip, self.tracker_port))
                 
                 # Registra o peer no tracker
-                register_command = f"REGISTER {self.peer_ip} {self.peer_port}"
+                files_str = ",".join(self.processed_files)
+                register_command = f"REGISTER {self.peer_ip} {self.peer_port} {files_str}"
                 sock.sendall(register_command.encode('utf-8'))
                 print(f"[PEER] Registrado no tracker: {register_command}")
 
         except Exception as e:
             print(f"[PEER] Erro ao conectar ao tracker: {e}")
 
+    # metodo para escutar comandos do usuario
+    def command_listener(self):
+        print("[PEER] Pronto para receber comandos.")
+
+        while self.running:
+            try:
+                user_input = input("> ").strip()
+
+                if user_input == "":
+                    continue
+
+                self.handle_command(user_input)
+            
+            except EOFError:
+                print("[PEER] Entrada de dados encerrada.")
+                self.running = False
+            except KeyboardInterrupt:
+                print("\n[PEER] Interrompido pelo usuário.")
+                self.running = False
+
+    # funcao que processa os comandos do usuario
+    def handle_command(self, command):
+        parts = command.split()
+
+        if parts[0] == "exit":
+            self.running = False
+            print("[PEER] Desligando o peer.")
+            sys.exit(0)
+        elif parts[0] == "list":
+            # Lista os peers registrados no tracker
+            print("[PEER] Lista de peers registrados:")
+            for peer in self.peers_list:
+                print(f" - {peer}")
+        elif parts[0] == "search":
+            if len(parts) < 2:
+                print("[PEER] Uso: search <file_name>")
+                return
+            
+            file_name = parts[1]
+            print(f"[PEER] Buscando por arquivos: {file_name}")
+            
+            self.request_file_peers(file_name)
+        else:
+            print(f"[PEER] Comando desconhecido: {command}")
+
+    def request_file_peers(self, file_name):
+        print(f"[PEER] Requisitando lista de peers que possuem o arquivo: {file_name}")
+
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.connect((self.tracker_ip, self.tracker_port))
+                
+                request_command = f"SEARCH {file_name}"
+                sock.sendall(request_command.encode('utf-8'))
+
+                # Recebe a resposta do tracker
+                resp = sock.recv(1024).decode('utf-8').strip()
+                print(f"[Tracker -> PEER] Resposta: {resp}")
+
+                # Aqui você pode processar a resposta e atualizar a lista de peers
+                #self.peers_list = resp.split(",") if resp else []
+        except Exception as e:
+            print(f"[PEER] Erro ao solicitar arquivo do tracker: {resp}")
 
 if __name__ == "__main__":
     # verificando se os argumentos foram passados corretamente
@@ -60,6 +127,11 @@ if __name__ == "__main__":
 
         peer = Peer(peer_ip, peer_port, data_dir_path)
         peer.connect_to_tracker()
+
+        # Inicia a thread para escutar comandos do usuário
+        t = threading.Thread(target=peer.command_listener)
+        t.daemon = False # permite que o programa principal continue rodando
+        t.start()
 
     except ValueError:
         print("ERRO: A porta do peer deve ser um número inteiro.")
