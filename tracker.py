@@ -104,11 +104,6 @@ def cleanup_dead_peers(peers, peer_last_seen, timeout=45):
                 # remove do last_seen
                 if peer_key in peer_last_seen:
                     del peer_last_seen[peer_key]
-
-                # remover o peer das listas de arquivo
-                for info in peers.values():
-                    if peer_key in info["files"]:
-                        info["files"].remove(peer_key)
         time.sleep(10)
 
 
