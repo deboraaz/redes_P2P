@@ -46,6 +46,28 @@ receber endereco - IP - lista de arquivos que ele tem acesso
 7- par realiza N conexoes com N peers que tem o arquivo x
 8- par recebe N fragmentos
 9- par reconstrói arquivo
+
+O requisito “Atualização dinâmica da lista de nós ativos” exige:
+
+O Peer deve avisar periodicamente que está vivo
+— ✔️ feito com HEARTBEAT
+
+O Tracker deve registrar o horário do último heartbeat
+— ✔️ feito
+
+Se o peer desaparecer ou for desligado sem avisar,
+o Tracker deve removê-lo automaticamente após um tempo (timeout).
+— ✔️ feito
+
+O Tracker deve refletir essa atualização nas buscas
+(SEARCH deve retornar apenas peers realmente vivos)
+— ✔️ feito (com remoção do peer da lista de arquivos)
+
+Se o peer sair voluntariamente, deve se remover imediatamente (UNREGISTER)
+— ✔️ feito
+
+LIST deve mostrar somente peers ativos agora
+— ✔️ feito
 ================================================================
 ===================== PROXIMOS PASSOS ====================
 ================================================================
@@ -73,10 +95,10 @@ PEER 6001 : search arq4.txt
 [Tracker -> PEER] Resposta: 127.0.0.1:6002,127.0.0.1:6003
 PEER 6001 : download arq4.txt
 
+se preciasr - sudo kill -9 12345
+
 ================================================================
 ========================= DUVIDAS ========================
 ================================================================
 
 sera q é melhor eu passar os arquivos em vez de passar o "peers_data/peer_601"? sim
-
-quando eu busco um arquivo o tracker resposde de todos os pares (inclusive aqueles que ja estao desconectados)?????? pois é, tem q arrumar isso

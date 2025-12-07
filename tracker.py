@@ -26,12 +26,13 @@ def handle_peer_conection(client_socket, client_address):
             peer_address_key = f"{peer_ip}:{peer_port}"
             
             with PEERS_LOCK:
-                if(peer_address_key not in PEERS):
-                    PEERS[peer_address_key] = {"ip": peer_ip, "port": peer_port, "files": files}
+                PEERS[peer_address_key] = {"ip": peer_ip, "port": peer_port, "files": files}
+                peer_last_seen[peer_address_key] = time.time()
 
-                    print(f"[TRACKER] Peer registrado: {peer_address_key}")
-                else:
-                    print(f"[TRACKER] Peer já registrado: {peer_address_key} com arquivos atualizados {files}")
+            print(f"[TRACKER] Peer registrado: {peer_address_key}")
+            client_socket.sendall(b"OK")
+
+            
         elif command == "SEARCH":
             filename = parts[1]
             print(f"[TRACKER] Peer {client_address} está buscando pelo arquivo: {filename}")
@@ -49,42 +50,67 @@ def handle_peer_conection(client_socket, client_address):
 
             client_socket.sendall(responde.encode('utf-8'))
             print(f"[TRACKER] Resposta enviada ao peer {client_address}: {responde}")
+        elif command == "UNREGISTER":
+            peer_ip = parts[1]
+            peer_port = parts[2]
+            peer_key = f"{peer_ip}:{peer_port}"
+            with PEERS_LOCK:
+                if peer_key in PEERS:
+                    del PEERS[peer_key]
+                if peer_key in peer_last_seen:
+                    del peer_last_seen[peer_key]
+            print(f"[TRACKER] Peer unregistered: {peer_key}")
+            client_socket.sendall(b"OK")
+
+        elif command == "LIST":
+            # Retorna a lista atual de keys de peers ativos
+            with PEERS_LOCK:
+                keys = list(PEERS.keys())
+            resp = ",".join(keys) if keys else ""
+            client_socket.sendall(resp.encode('utf-8'))
+
         elif command == "HEARTBEAT":
             ip = parts[1]
             port = parts[2]
-            peer_last_seen[f"{ip}:{port}"] = time.time()
-            print(f"[TRACKER] Recebido heartbeat de {ip}:{port}")
-            return
+            peer_key = f"{ip}:{port}"
+            with PEERS_LOCK:
+                peer_last_seen[peer_key] = time.time()
+            print(f"[TRACKER] Recebido heartbeat de {peer_key}")
+            client_socket.sendall(b"OK")
+
 
     except Exception as e:
         print(f"[TRACKER] Erro ao lidar com conexão do peer {client_address}: {e}")
     finally:
         client_socket.close()
 
-def cleanup_dead_peers(peers, peer_last_seen, timeout=20): #timeout (limite de tempo que o tracker espera por heartbeat)
+def cleanup_dead_peers(peers, peer_last_seen, timeout=45):
     while True:
         now = time.time()
+        to_remove = []
 
-        # remover peers do dicionário de última vez visto
-        dead = []
-        for peer_key, ts in peer_last_seen.items():
-            if now - ts > timeout:
-                dead.append(peer_key)  # exemplo: "127.0.0.1:6002"
+        with PEERS_LOCK:
+            for peer_key, last in list(peer_last_seen.items()):
+                if now - last > timeout:
+                    to_remove.append(peer_key)
 
+            for peer_key in to_remove:
+                print(f"[TRACKER] Removendo peer inativo: {peer_key}")
 
-        # remover efetivamente
-        for peer_key in dead:
-            print(f"[TRACKER] Removendo peer inativo: {peer_key}")
+                # remove do dict global
+                if peer_key in peers:
+                    del peers[peer_key]
 
-            # remove do dicionário principal de peers
-            if peer_key in peers:
-                del peers[peer_key]
+                # remove do last_seen
+                if peer_key in peer_last_seen:
+                    del peer_last_seen[peer_key]
 
-            # remove do last_seen
-            if peer_key in peer_last_seen:
-                del peer_last_seen[peer_key]
+                # remover o peer das listas de arquivo
+                for info in peers.values():
+                    if peer_key in info["files"]:
+                        info["files"].remove(peer_key)
+        time.sleep(10)
 
-        time.sleep(10)  # executa a cada 10 segundos
 
 def start_tracker(host='127.0.0.1', port=5000):
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

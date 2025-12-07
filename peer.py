@@ -41,6 +41,11 @@ class Peer:
         self.server_thread.daemon = True
         self.server_thread.start()
 
+        # iniciar o heartbeat assim que o peer é criado
+        hb_thread = threading.Thread(target=self.heartbeat_loop, daemon=True)
+        hb_thread.start()
+
+
         self.data_dir = Path(data_dir_path)
         # lista de arquivos que o peer possui
         self.processed_files = [f.name for f in self.data_dir.iterdir() if f.is_file()]
@@ -53,14 +58,18 @@ class Peer:
     def heartbeat_loop(self):
         while True:
             try:
-                sock = socket.socket(...)
-                sock.connect((TRACKER_IP, TRACKER_PORT))
-                sock.sendall(f"HEARTBEAT {self.peer_ip} {self.peer_port}".encode())
-                sock.close()
-            except:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                    sock.connect((self.tracker_ip, self.tracker_port))
+                    sock.sendall(f"HEARTBEAT {self.peer_ip} {self.peer_port}".encode())
+                    # opcional: ler resposta curta do tracker
+                    try:
+                        _ = sock.recv(16)
+                    except:
+                        pass
+            except Exception:
+                # falhas de rede são silenciosas — o cleanup removerá peers inativos
                 pass
             time.sleep(10) # envia heartbeat a cada 10 segundos
-
 
     def file_server(self):
         # Servidor para compartilhar arquivos com outros peers
@@ -112,7 +121,6 @@ class Peer:
                     client_socket.sendall(chunk)
                     print(f"[PEER] Enviado chunk offset={offset} size={size} para {client_address}")
 
-                client_socket.sendall(chunk)
                 print(f"[PEER] Enviado arquivo {filename} para {client_address}")
                     
         except Exception as e:
@@ -132,6 +140,10 @@ class Peer:
                 register_command = f"REGISTER {self.peer_ip} {self.peer_port} {files_str}"
                 sock.sendall(register_command.encode('utf-8'))
                 print(f"[PEER] Registrado no tracker: {register_command}")
+
+                # Inicia a thread de heartbeat
+                hb_thread = threading.Thread(target=self.heartbeat_loop, daemon=True)
+                hb_thread.start()
 
         except Exception as e:
             print(f"[PEER] Erro ao conectar ao tracker: {e}")
@@ -160,13 +172,43 @@ class Peer:
     def handle_command(self, command):
         parts = command.split()
 
+        # Entender
         if parts[0] == "exit":
+            # envia UNREGISTER ao tracker para remoção imediata (saída limpa)
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                    sock.connect((self.tracker_ip, self.tracker_port))
+                    sock.sendall(f"UNREGISTER {self.peer_ip} {self.peer_port}".encode())
+                    # opcional: ler resposta
+                    try:
+                        _ = sock.recv(16)
+                    except:
+                        pass
+            except Exception:
+                pass
+
             self.running = False
             print("[PEER] Desligando o peer.")
             sys.exit(0)
+        
+        #Entender
         elif parts[0] == "list":
-            # Lista os peers registrados no tracker
-            print("[PEER] Lista de peers registrados:")
+            # Solicita ao tracker a lista atual de peers ativos
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                    sock.connect((self.tracker_ip, self.tracker_port))
+                    sock.sendall("LIST".encode())
+                    resp = sock.recv(4096).decode().strip()
+            except Exception as e:
+                print("[PEER] Erro ao pedir lista ao tracker:", e)
+                resp = ""
+
+            if resp:
+                self.peers_list = resp.split(",")
+            else:
+                self.peers_list = []
+
+            print("[PEER] Lista de peers registrados (atual):")
             for peer in self.peers_list:
                 print(f" - {peer}")
         elif parts[0] == "search":
