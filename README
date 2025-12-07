@@ -1,0 +1,35 @@
+# Arquivo P2P para comprtilhamento de arquivos
+
+Este projeto implementa um sistema Peer-to-Peer (P2P) capaz de registrar peers em um servidor Tracker, solicitar lista de peers ativos, buscar arquivos, realizar download dividido em chunks e permitir a comunicação simultanea entre múltiplos pares. 
+
+# Tecnologia utilizadas
+    Linguagem python
+
+    Bibliotecas:
+        - socket     : comunicação TCP
+        - threading  : realização de conexões simultâneas
+        - os         : manipulaçao de arquivos
+        - time       : monitoramento (heartbeat)
+        - pathlib    : manipulação de caminhos
+        - sys        : receber argumentos da linha de comando
+        - shutil     : 
+
+# Como executar 
+
+1- Clone o repositório e entre na pasta
+
+    git clone https://github.com/deboraaz/redes_P2P.git
+    cd redes_P2P
+
+3 - Execute o tracker
+    python tracker.py
+
+4 - Execute peer (quantos quiser)
+
+    python3 peer.py <endereço_ip> <porta> lista de arquivos que o par terá acesso
+
+    Exemplo usando os arquivos da pasta "arquivos" 
+    python3 peer.py 127.0.0.1 6001 arquivos/arq1.txt arquivos/arq2.txt
+    python3 peer.py 127.0.0.1 6002 arquivos/arq3.txt
+    python3 peer.py 127.0.0.1 6003 arquivos/arq5.txt arquivos/arq7.txt
+
