@@ -75,7 +75,7 @@ def handle_peer_conection(client_socket, client_address):
             peer_key = f"{ip}:{port}"
             with PEERS_LOCK:
                 peer_last_seen[peer_key] = time.time()
-            print(f"[TRACKER] Recebido heartbeat de {peer_key}")
+            #print(f"[TRACKER] Recebido heartbeat de {peer_key}")
             client_socket.sendall(b"OK")
 
 
@@ -84,7 +84,7 @@ def handle_peer_conection(client_socket, client_address):
     finally:
         client_socket.close()
 
-def cleanup_dead_peers(peers, peer_last_seen, timeout=45):
+def cleanup_dead_peers(peers, peer_last_seen, timeout=20):
     while True:
         now = time.time()
         to_remove = []
