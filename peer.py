@@ -15,6 +15,8 @@ import queue
 #para o uso do heartbeat
 import time
 
+import shutil #para manipulação de arquivos (foi usado shutil.copy para copia dos arquivos da pasta de exemplo para o peer)
+
 # informacoes do tracker (globais pra nao precisar ficar repetindo)
 TRACKER_IP = '127.0.0.1'
 TRACKER_PORT = 5000
@@ -27,9 +29,36 @@ class Peer:
     #recebera o caminho dos arquivos na hora do cadastro
 
     def __init__(self, peer_ip: str, peer_port: int, data_dir_path: str):
+
         #informacoes dos dados do proprio peer
         self.peer_ip = peer_ip
         self.peer_port = peer_port
+
+        # criacao do diretorio dos peers
+        base_dir = Path("peers_data")
+        base_dir.mkdir(exist_ok=True)
+
+        # pasta individual de cada peer
+        self.data_dir = base_dir / f"peer_{self.peer_port}"
+        self.data_dir.mkdir(exist_ok=True)
+
+        # copiar arquivos informados para a pasta do peer
+        self.files = []
+        for src_file in data_dir_path:
+            src_path = Path(src_file)
+
+            if src_path.exists():
+                dest_path = self.data_dir / src_path.name
+                shutil.copy(src_path, dest_path)
+                self.files.append(str(dest_path))   # caminho completo do arquivo copiado
+            else:
+                print(f"[WARN] Arquivo não encontrado: {src_path}")
+        
+        # nomes dos arquivos
+        self.processed_files = [Path(f).name for f in self.files]
+
+        # dicionario para mapear nomes de arquivos aos seus caminhos completos
+        self.file_paths = {Path(f).name: f for f in self.files}
 
         #informacoes gerais da rede
         self.tracker_ip = TRACKER_IP
@@ -41,15 +70,28 @@ class Peer:
         self.server_thread.daemon = True
         self.server_thread.start()
 
-        # iniciar o heartbeat assim que o peer é criado
+        # iniciar o heartbeat assim que o peer é criado 
         hb_thread = threading.Thread(target=self.heartbeat_loop, daemon=True)
-        hb_thread.start()
 
-
-        self.data_dir = Path(data_dir_path)
+        #self.data_dir = Path(data_dir_path)
         # lista de arquivos que o peer possui
-        self.processed_files = [f.name for f in self.data_dir.iterdir() if f.is_file()]
-        print("[PEER]: IP {} : Porta {} : Arquivos {}".format(self.peer_ip, self.peer_port, self.processed_files))
+        #self.processed_files = [f.name for f in self.data_dir.iterdir() if f.is_file()]
+        #print("[PEER]: IP {} : Porta {} : Arquivos {}".format(self.peer_ip, self.peer_port, self.processed_files))
+
+        # lista de caminhos completos
+        self.files = data_dir_path  
+
+        # nomes dos arquivos (ex: arq1.txt, arq2.txt)
+        self.processed_files = [os.path.basename(f) for f in self.files]
+
+        # mapeamento: nome → caminho completo
+        self.file_paths = {os.path.basename(f): f for f in self.files}
+
+        # print("[PEER]: IP {} : Porta {} : Arquivos {}".format(
+        #     self.peer_ip, 
+        #     self.peer_port, 
+        #     self.processed_files
+        # ))
 
         # flag para desligar o peer quando o usuário digitar "exit"
         self.running = True
@@ -77,7 +119,7 @@ class Peer:
         server_socket.bind((self.peer_ip, self.peer_port))
         server_socket.listen(5)
 
-        print(f"[PEER] Servidor de arquivos iniciado em {self.peer_ip}:{self.peer_port}. Aguardando conexões...")
+        #print(f"[PEER] Servidor de arquivos iniciado em {self.peer_ip}:{self.peer_port}. Aguardando conexões... ")
 
         while True:
             try:
@@ -101,21 +143,28 @@ class Peer:
                 filename = parts[1]
                 offset = int(parts[2])
                 size = int(parts[3])
-                file_path = self.data_dir / filename
+                full_path = Path(self.file_paths[filename])
 
-                if not file_path.exists():
+                if not full_path.exists():
                     response = "ERROR: Arquivo não encontrado"
                     client_socket.sendall(response.encode('utf-8'))
                     return
-                with open(file_path, 'rb') as f:
-                    if size == 0:  
-                        # pedido especial: só retornar o tamanho do arquivo
-                        file_size = os.path.getsize(file_path)
-                        client_socket.sendall(str(file_size).encode('utf-8'))
-                        print(f"[PEER] Enviado tamanho de {filename}: {file_size} bytes para {client_address}")
-                        return
+                
+                #dicionario para mapear nomes de arquivos aos seus caminhos completos
+                # arquivo solicitado
+                if filename not in self.file_paths:
+                    response = "ERROR: Arquivo não encontrado"
+                    client_socket.sendall(response.encode('utf-8'))
+                    return
 
-                    # pedido normal: enviar chunk
+                full_path = self.file_paths[filename]
+
+                if size == 0:
+                    file_size = os.path.getsize(full_path)
+                    client_socket.sendall(str(file_size).encode('utf-8'))
+                    return
+
+                with open(full_path, "rb") as f:
                     f.seek(offset)
                     chunk = f.read(size)
                     client_socket.sendall(chunk)
@@ -139,7 +188,7 @@ class Peer:
                 files_str = ",".join(self.processed_files)
                 register_command = f"REGISTER {self.peer_ip} {self.peer_port} {files_str}"
                 sock.sendall(register_command.encode('utf-8'))
-                print(f"[PEER] Registrado no tracker: {register_command}")
+                print(f"[PEER] Registrado no tracker")
 
                 # Inicia a thread de heartbeat
                 hb_thread = threading.Thread(target=self.heartbeat_loop, daemon=True)
@@ -150,7 +199,7 @@ class Peer:
 
     # metodo para escutar comandos do usuario
     def command_listener(self):
-        print("[PEER] Pronto para receber comandos.")
+        print("[PEER] Comandos disponiveis: list, search <file_name>, download <file_name>, exit")
 
         while self.running:
             try:
@@ -353,16 +402,20 @@ class Peer:
 
 if __name__ == "__main__":
     # verificando se os argumentos foram passados corretamente
-    if len(sys.argv) != 4:
+    if len(sys.argv) < 4:
         print("ERRO: Uso correto: python3 peer.py <PEER_IP> <PEER_PORT> <DATA_DIR_PATH>")
         sys.exit(1)
 
     try:
         peer_ip = sys.argv[1]
         peer_port = int(sys.argv[2])
-        data_dir_path = sys.argv[3]
 
-        peer = Peer(peer_ip, peer_port, data_dir_path)
+        # arquivos começam no argumento 3 em diante
+        file_paths = sys.argv[3:]
+        # extrai apenas o nome, sem o caminho completo
+        #available_files = [os.path.basename(f) for f in data_dir_path]
+
+        peer = Peer(peer_ip, peer_port, file_paths)
         peer.connect_to_tracker()
 
         # Inicia a thread para escutar comandos do usuário

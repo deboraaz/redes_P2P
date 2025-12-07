@@ -30,10 +30,16 @@ O tracker usa treading para lidar com varios peers ao mesmo tempo. Nesse context
 quando criar o peer quero:
 receber endereco - IP - lista de arquivos que ele tem acesso
 
+
+
+
+
+A porta efêmera é um número de porta temporário que o sistema operacional escolhe automaticamente sempre que um cliente abre uma conexão TCP para se comunicar com um servidor. Ela não é a porta onde o peer escuta (por exemplo, 6001 ou 6002), mas sim a porta usada apenas para aquela conexão de saída. Isso é exatamente como a comunicação TCP funciona: o peer usa a sua porta fixa para receber arquivos, mas usa uma porta efêmera diferente para enviar comandos ao tracker. Portanto, quando o tracker imprime client_address[1], ele deve mostrar mesmo a porta efêmera — e isso está correto. Mostrar a porta fixa do peer seria errado, porque o tracker não tem como saber qual é ela apenas pela conexão TCP; ele sabe apenas o IP/porta efêmera da conexão atual. A porta real do peer só pode ser conhecida através do comando REGISTER, não da conexão usada para SEARCH, LIST ou HEARTBEAT. Portanto, usar a porta efêmera no print é o comportamento certo e compatível com o funcionamento padrão do TCP.
+
 ================================================================
 ===================== O QUE O CODIGO JA FAZ ====================
 ================================================================
-1-cria pastas e associa arquvos para cada par (melhora isso depois - passar arquivos na entrada e ele cria a pasta com eles)
+1-cria pastas e associa arquvos para cada par (entrando pelo terminal)
 
 2-inicia o tracker
 
@@ -46,6 +52,8 @@ receber endereco - IP - lista de arquivos que ele tem acesso
 7- par realiza N conexoes com N peers que tem o arquivo x
 8- par recebe N fragmentos
 9- par reconstrói arquivo
+
+10- - lista de pares ativos (atualizacao dinamica da lista de nós)
 
 O requisito “Atualização dinâmica da lista de nós ativos” exige:
 
@@ -71,9 +79,7 @@ LIST deve mostrar somente peers ativos agora
 ================================================================
 ===================== PROXIMOS PASSOS ====================
 ================================================================
-- entrar arquivos que o peer tem pelo terminal e nao do jeito que ta
-
-- lista de pares ativos (atualizacao dinamica da lista de nós)
+- deixar mais facil de "ler" o tracker
 
 - (Segurança): Assinatura digital dos blocos compartilhados.
 ================================================================
@@ -90,15 +96,21 @@ terminal 3:
 python3 peer.py 127.0.0.1 6002 peers_data/peer_6002
 python3 peer.py 127.0.0.1 6003 peers_data/peer_6003
 
+novo:
+python3 peer.py 127.0.0.1 6001 arquivos/arq1.txt arquivos/arq2.txt
+python3 peer.py 127.0.0.1 6002 arquivos/arq3.txt
+python3 peer.py 127.0.0.1 6003 arquivos/arq5.txt arquivos/arq7.txt
+
 exemplo: 
 PEER 6001 : search arq4.txt
 [Tracker -> PEER] Resposta: 127.0.0.1:6002,127.0.0.1:6003
 PEER 6001 : download arq4.txt
 
-se preciasr - sudo kill -9 12345
+se preciasr - 
+sudo kill -9 12345
 
 ================================================================
 ========================= DUVIDAS ========================
 ================================================================
 
-sera q é melhor eu passar os arquivos em vez de passar o "peers_data/peer_601"? sim
+TEM ALGUM TEMPO FAZENDO O TRACKER DEMORAR A "MORRER"
