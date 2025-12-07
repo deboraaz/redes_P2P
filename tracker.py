@@ -11,7 +11,6 @@ def handle_peer_conection(client_socket, client_address):
     try:
         #recebe os dados do peer
         data = client_socket.recv(1024).decode('utf-8').strip()
-        #print(f"[TRACKER] Conexão recebida de {client_address[0]}: {client_address[1]} : {data}")
     
         if not data:
             print(f"[TRACKER] Mensagem vazia de {client_address}")
