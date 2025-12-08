@@ -53,3 +53,6 @@ Este projeto implementa um sistema Peer-to-Peer (P2P) capaz de registrar peers e
 
 Implementar o incremento de segurança, adicionando assinatura digital dos blocos compartilhados. Assim, será possível garantir a integridade e a autenticidade dos arquivos transmitidos entre pares, evitando alterações maliciosas e aumentando a confiabilidade do sistema P2P.
 
+consigo registrar um peer sem arquivos?
+
+OBS.: quando ele vai pegar o tamanho do arquivo e ja fizeram varios downloads (ele sempre pega o primeiro da lista) mas se o primeiro da lista for alguem que fez download (e nao tinha desde a inicializacao) da problema pra encontrar o tamanho

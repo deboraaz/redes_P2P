@@ -79,17 +79,16 @@ class Peer:
         # flag para desligar o peer quando o usuário digitar "exit"
         self.running = True
 
-    def get_local_ip():
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        try:
-            s.connect(("8.8.8.8", 80))  # não envia nada, só escolhe interface ativa
-            ip = s.getsockname()[0]
-        except:
-            ip = "127.0.0.1"
-        finally:
-            s.close()
-        return ip
-
+    # def get_local_ip():
+    #     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    #     try:
+    #         s.connect(("8.8.8.8", 80))  # não envia nada, só escolhe interface ativa
+    #         ip = s.getsockname()[0]
+    #     except:
+    #         ip = "127.0.0.1"
+    #     finally:
+    #         s.close()
+    #     return ip
 
     def file_server(self):
         # Servidor para compartilhar arquivos com outros peers
@@ -392,24 +391,23 @@ class Peer:
 
 if __name__ == "__main__":
     # verificando se os argumentos foram passados corretamente
-    if len(sys.argv) < 3:
+    if len(sys.argv) < 4:
         print("ERRO: Uso correto: python3 peer.py <PEER_IP> <PEER_PORT> <DATA_DIR_PATH>")
         sys.exit(1)
 
     try:
-        #peer_ip = sys.argv[1]
-        peer_ip = Peer.get_local_ip() #pega o ip local automaticamente
-        peer_port = int(sys.argv[1])
+        peer_ip = sys.argv[1]
+        peer_port = int(sys.argv[2])
 
         # arquivos começam no argumento 3 em diante
-        file_paths = sys.argv[2:]
+        file_paths = sys.argv[3:]
 
         peer = Peer(peer_ip, peer_port, file_paths)
         peer.connect_to_tracker()
 
         # Inicia a thread para escutar comandos do usuário
         t = threading.Thread(target=peer.command_listener)
-        #t.daemon = False # permite que o programa principal continue rodando
+        t.daemon = False # permite que o programa principal continue rodando
         t.start()
 
     except ValueError:

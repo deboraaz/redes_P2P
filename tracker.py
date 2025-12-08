@@ -2,11 +2,14 @@ import socket
 import threading
 import time #para uso do heartbeat
 
-PEERS = {}
-peer_last_seen = {} 
+# Dicionário global para armazenar informações dos peers
+PEERS = {} # estrutura chave valor: "ip:port" : {"ip": ip, "port": port, "files": []}
+peer_last_seen = {} # estrutura chave valor: "ip:port" : timestamp do ultimo heartbeat recebido
 
 PEERS_LOCK = threading.Lock() #iniciada globalmente para evitar problemas de concorrencia
 
+# Função para lidar com a conexão de um peer 
+# REGISTER, SEARCH, UNREGISTER, LIST, HEARTBEAT, UPDATE
 def handle_peer_conection(client_socket, client_address):
     try:
         #recebe os dados do peer
@@ -16,41 +19,41 @@ def handle_peer_conection(client_socket, client_address):
             print(f"[TRACKER] Mensagem vazia de {client_address}")
             return
         
-        parts = data.split() #divide a string em partes
+        parts_data = data.split() #divide a string em partes
 
-        if len(parts) == 0:
+        if len(parts_data) == 0:
             print(f"[TRACKER] Mensagem inválida de {client_address}: '{data}'")
             return
 
-        command = parts[0] #comando recebido do peer
+        command = parts_data[0] #comando recebido do peer
 
         if command == "REGISTER":
-            peer_ip = parts[1]
-            peer_port = int(parts[2])
+            peer_ip = parts_data[1]
+            peer_port = int(parts_data[2])
 
-            files = parts[3].split(",") if len(parts) > 3 else []
+            if len(parts_data) > 3:
+                files = parts_data[3].split(",") 
+            else:
+                files = []
             
-            peer_address_key = f"{peer_ip}:{peer_port}"
+            peer_id = f"{peer_ip}:{peer_port}"
             
             with PEERS_LOCK:
-                PEERS[peer_address_key] = {"ip": peer_ip, "port": peer_port, "files": files}
-                peer_last_seen[peer_address_key] = time.time()
-
-            print(f"[TRACKER] Peer registrado: {peer_address_key}")
-            client_socket.sendall(b"OK")
-
+                PEERS[peer_id] = {"ip": peer_ip, "port": peer_port, "files": files}
+                peer_last_seen[peer_id] = time.time() 
+            print(f"[TRACKER] Peer registrado: {peer_id}")
             
         elif command == "SEARCH":
-            if len(parts) < 2:
+            if len(parts_data) < 2:
                 print(f"[TRACKER] SEARCH inválido recebido de {client_address}: '{data}'")
                 client_socket.sendall(b"ERRO: SEARCH requer nome do arquivo")
                 return
             
-            filename = parts[1]
-            #print(f"[TRACKER] Peer {client_address} está buscando pelo arquivo: {filename}")
+            filename = parts_data[1]
 
-            result = []
+            result = [] # lista de peers que possuem o arquivo
 
+            # loop que varre os peer procurando o arquivo
             with PEERS_LOCK:
                 for peer_key, peer_info in PEERS.items():
                     if filename in peer_info["files"]:
@@ -61,42 +64,38 @@ def handle_peer_conection(client_socket, client_address):
                 responde = "NAO ENCONTRADO"
 
             client_socket.sendall(responde.encode('utf-8'))
-            # print(f"[TRACKER] Resposta enviada ao peer {client_address}: {responde}")
             print(f"[TRACKER] Lista de pares com o arquivo '{filename}' enviada ao peer {client_address}")
 
-            # print(f"[TRACKER] Peer {client_address}(porta:{peer_port}) está buscando pelo arquivo: {filename}")
         elif command == "UNREGISTER":
-            peer_ip = parts[1]
-            peer_port = parts[2]
-            peer_key = f"{peer_ip}:{peer_port}"
+            peer_ip = parts_data[1]
+            peer_port = parts_data[2]
+            peer_id = f"{peer_ip}:{peer_port}"
+            
             with PEERS_LOCK:
-                if peer_key in PEERS:
-                    del PEERS[peer_key]
-                if peer_key in peer_last_seen:
-                    del peer_last_seen[peer_key]
-            print(f"[TRACKER] Peer unregistered: {peer_key}")
-            client_socket.sendall(b"OK")
+                if peer_id in PEERS:
+                    del PEERS[peer_id]
+                if peer_id in peer_last_seen:
+                    del peer_last_seen[peer_id]
+            print(f"[TRACKER] Peer unregistered: {peer_id}")
 
         elif command == "LIST":
             # Retorna a lista atual de keys de peers ativos
             with PEERS_LOCK:
-                keys = list(PEERS.keys())
+                keys = list(PEERS.keys()) 
             resp = ",".join(keys) if keys else ""
             client_socket.sendall(resp.encode('utf-8'))
             print(f"[TRACKER] Enviada lista de peers ativos para {client_address}: {resp}")
 
         elif command == "HEARTBEAT":
-            ip = parts[1]
-            port = parts[2]
-            peer_key = f"{ip}:{port}"
+            ip = parts_data[1]
+            port = parts_data[2]
+            peer_id = f"{ip}:{port}"
             with PEERS_LOCK:
-                peer_last_seen[peer_key] = time.time()
-            #print(f"[TRACKER] Recebido heartbeat de {peer_key}")
-            client_socket.sendall(b"OK")
+                peer_last_seen[peer_id] = time.time()
         elif command == "UPDATE":
-            ip = parts[1]
-            port = parts[2]
-            file_name = parts[3]
+            ip = parts_data[1]
+            port = parts_data[2]
+            file_name = parts_data[3]
             
             peer_id = f"{ip}:{port}"
 
@@ -104,8 +103,6 @@ def handle_peer_conection(client_socket, client_address):
                 if peer_id in PEERS:
                     if file_name not in PEERS[peer_id]["files"]:
                         PEERS[peer_id]["files"].append(file_name)
-
-                    client_socket.sendall(b"OK")
                 else:
                     client_socket.sendall(b"ERRO Peer nao registrado")
 
@@ -136,7 +133,6 @@ def cleanup_dead_peers(peers, peer_last_seen, timeout=20):
                     del peer_last_seen[peer_key]
         time.sleep(10) #verifica a cada 10 segundos
 
-        
 
 def start_tracker(host='127.0.0.1', port=5000):
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -165,5 +161,5 @@ def start_tracker(host='127.0.0.1', port=5000):
             print(f"[TRACKER] Erro ao aceitar conexão: {e}")
 
 if __name__ == "__main__":
-    # vamos definir a porta do tracker aqui
     start_tracker(host='127.0.0.1', port=5000)
+    #tenho que usar 0.0.0.0 para aceitar conexoes externas
