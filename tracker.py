@@ -136,6 +136,7 @@ def cleanup_dead_peers(peers, peer_last_seen, timeout=20):
                     del peer_last_seen[peer_key]
         time.sleep(10) #verifica a cada 10 segundos
 
+        
 
 def start_tracker(host='127.0.0.1', port=5000):
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
