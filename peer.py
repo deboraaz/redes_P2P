@@ -217,7 +217,7 @@ class Peer:
             t.join()
 
         # 7 — Reconstruir arquivo
-        save_path = self.data_dir / file_name
+        save_path = self.data_dir / file_name # salvar na pasta do peer
         with open(save_path, "wb") as f:
             for chunk in final_data:
                 if chunk:

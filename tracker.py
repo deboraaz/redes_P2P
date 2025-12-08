@@ -28,7 +28,6 @@ def handle_peer_conection(client_socket, client_address):
             peer_ip = parts[1]
             peer_port = int(parts[2])
 
-            #ENTENDER/MODIFICAR
             files = parts[3].split(",") if len(parts) > 3 else []
             
             peer_address_key = f"{peer_ip}:{peer_port}"
