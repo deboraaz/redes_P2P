@@ -3,23 +3,17 @@ import threading
 
 # bibliotecas adicionadas para manipulação de arquivos
 import os
-import json # Necessário para enviar dados estruturados ao tracker (se você for usar o modelo JSON)
 from pathlib import Path # Importar Path para manipulação de caminhos
-
 import sys # para pegar argumentos da linha de comando
-
-#bibliotecas adicionadas para manipulação de arquivos em blocos
+import time #para o uso do heartbeat
+import shutil #para manipulação de arquivos (foi usado shutil.copy para copia dos arquivos da pasta de exemplo para o peer)
 import math
 import queue
-
-#para o uso do heartbeat
-import time
-
-import shutil #para manipulação de arquivos (foi usado shutil.copy para copia dos arquivos da pasta de exemplo para o peer)
 
 # informacoes do tracker (globais pra nao precisar ficar repetindo)
 TRACKER_IP = '127.0.0.1'
 TRACKER_PORT = 5000
+
 TAM_CHUNK = 50 #tamanho pequeno pra testar com arquivos pequenos e ter pelo menos 3 chunks
 
 #TAM_CHUNK = 4096 # tam dos chunks (blocos) do arquivo a serem enviados
@@ -31,7 +25,7 @@ class Peer:
     def __init__(self, peer_ip: str, peer_port: int, data_dir_path: str):
 
         #informacoes dos dados do proprio peer
-        self.peer_ip = peer_ip
+        self .peer_ip = peer_ip
         self.peer_port = peer_port
 
         # criacao do diretorio dos peers
@@ -73,49 +67,26 @@ class Peer:
         # iniciar o heartbeat assim que o peer é criado 
         hb_thread = threading.Thread(target=self.heartbeat_loop, daemon=True)
 
-        #self.data_dir = Path(data_dir_path)
-        # lista de arquivos que o peer possui
-        #self.processed_files = [f.name for f in self.data_dir.iterdir() if f.is_file()]
-        #print("[PEER]: IP {} : Porta {} : Arquivos {}".format(self.peer_ip, self.peer_port, self.processed_files))
-
         # lista de caminhos completos
         self.files = data_dir_path  
 
-        # nomes dos arquivos (ex: arq1.txt, arq2.txt)
+        # nomes dos arquivos
         self.processed_files = [os.path.basename(f) for f in self.files]
 
-        # mapeamento: nome → caminho completo
+        # dicionario para mapear nomes de arquivos aos seus caminhos completos
         self.file_paths = {os.path.basename(f): f for f in self.files}
-
-        # print("[PEER]: IP {} : Porta {} : Arquivos {}".format(
-        #     self.peer_ip, 
-        #     self.peer_port, 
-        #     self.processed_files
-        # ))
 
         # flag para desligar o peer quando o usuário digitar "exit"
         self.running = True
 
-    # thread para enviar heartbeats ao tracker periodicamente (pra confirmar que esta ativo na rede)
-    def heartbeat_loop(self):
-        while True:
-            try:
-                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-                    sock.connect((self.tracker_ip, self.tracker_port))
-                    sock.sendall(f"HEARTBEAT {self.peer_ip} {self.peer_port}".encode())
-                    # opcional: ler resposta curta do tracker
-                    try:
-                        _ = sock.recv(16)
-                    except:
-                        pass
-            except Exception:
-                # falhas de rede são silenciosas — o cleanup removerá peers inativos
-                pass
-            time.sleep(10) # envia heartbeat a cada 10 segundos
-
     def file_server(self):
         # Servidor para compartilhar arquivos com outros peers
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        
+        # Permite reuso imediato da porta (evita TIME_WAIT)
+        server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+
         server_socket.bind((self.peer_ip, self.peer_port))
         server_socket.listen(5)
 
@@ -177,127 +148,7 @@ class Peer:
         finally:
             client_socket.close()
 
-    def connect_to_tracker(self):
-        # Conecta ao tracker para registrar o peer
-
-        try:
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-                sock.connect((self.tracker_ip, self.tracker_port))
-                
-                # Registra o peer no tracker
-                files_str = ",".join(self.processed_files)
-                register_command = f"REGISTER {self.peer_ip} {self.peer_port} {files_str}"
-                sock.sendall(register_command.encode('utf-8'))
-                print(f"[PEER] Registrado no tracker")
-
-                # Inicia a thread de heartbeat
-                hb_thread = threading.Thread(target=self.heartbeat_loop, daemon=True)
-                hb_thread.start()
-
-        except Exception as e:
-            print(f"[PEER] Erro ao conectar ao tracker: {e}")
-
-    # metodo para escutar comandos do usuario
-    def command_listener(self):
-        print("[PEER] Comandos disponiveis: list, search <file_name>, download <file_name>, exit")
-
-        while self.running:
-            try:
-                user_input = input("> ").strip()
-
-                if user_input == "":
-                    continue
-
-                self.handle_command(user_input)
-            
-            except EOFError:
-                print("[PEER] Entrada de dados encerrada.")
-                self.running = False
-            except KeyboardInterrupt:
-                print("\n[PEER] Interrompido pelo usuário.")
-                self.running = False
-
-    # funcao que processa os comandos do usuario
-    def handle_command(self, command):
-        parts = command.split()
-
-        # Entender
-        if parts[0] == "exit":
-            # envia UNREGISTER ao tracker para remoção imediata (saída limpa)
-            try:
-                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-                    sock.connect((self.tracker_ip, self.tracker_port))
-                    sock.sendall(f"UNREGISTER {self.peer_ip} {self.peer_port}".encode())
-                    # opcional: ler resposta
-                    try:
-                        _ = sock.recv(16)
-                    except:
-                        pass
-            except Exception:
-                pass
-
-            self.running = False
-            print("[PEER] Desligando o peer.")
-            sys.exit(0)
-        
-        #Entender
-        elif parts[0] == "list":
-            # Solicita ao tracker a lista atual de peers ativos
-            try:
-                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-                    sock.connect((self.tracker_ip, self.tracker_port))
-                    sock.sendall("LIST".encode())
-                    resp = sock.recv(4096).decode().strip()
-            except Exception as e:
-                print("[PEER] Erro ao pedir lista ao tracker:", e)
-                resp = ""
-
-            if resp:
-                self.peers_list = resp.split(",")
-            else:
-                self.peers_list = []
-
-            print("[PEER] Lista de peers registrados (atual):")
-            for peer in self.peers_list:
-                print(f" - {peer}")
-        elif parts[0] == "search":
-            # Busca por arquivos na rede
-            if len(parts) < 2:
-                print("[PEER] Uso: search <file_name>")
-                return
-            
-            file_name = parts[1]
-            print(f"[PEER] Buscando por arquivos: {file_name}")
-            
-            self.request_file_peers(file_name)
-        elif parts[0] == "download":
-            if len(parts) < 2:
-                print("[PEER] Uso: download <file_name>")
-                return
-
-            file_name = parts[1]
-
-            # Verifica se já existe resultado de busca
-            if not hasattr(self, "search_results") or len(self.search_results) == 0:
-                print("[PEER] Nenhum resultado de busca. Use 'search <arquivo>' antes.")
-                return
-
-            # Pega o primeiro peer que tem o arquivo
-            target = self.search_results[0]
-            target_ip, target_port = target.split(":")
-
-            print(f"[PEER] Baixando {file_name} de {target_ip}:{target_port} ...")
-
-            self.download_file(file_name, target_ip, int(target_port))
-            return
-
-        else:
-            print(f"[PEER] Comando desconhecido: {command}")
-
-    #ENTENDER ESSA FUNCAO!!!!! É UMA DAS MAIS IMPORTANTES
     def download_file(self, file_name, peer_ip, peer_port):
-        import math
-        import queue
 
         peers = self.search_results[:]  # lista de peers que têm o arquivo
         if not peers:
@@ -374,6 +225,15 @@ class Peer:
 
         print(f"[PEER] Download completo: {file_name}")
 
+        # Avisar ao tracker que agora possui o arquivo
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.connect((self.tracker_ip, self.tracker_port))
+                sock.sendall(f"UPDATE {self.peer_ip} {self.peer_port} {file_name}".encode())
+        except Exception as e:
+            print("[PEER] Falha ao atualizar o tracker:", e)
+
+
     def request_file_peers(self, file_name):
         print(f"[PEER] Requisitando lista de peers que possuem o arquivo: {file_name}")
 
@@ -394,11 +254,129 @@ class Peer:
                 else:
                     self.search_results = []
 
-
-                # Aqui você pode processar a resposta e atualizar a lista de peers
-                #self.peers_list = resp.split(",") if resp else []
         except Exception as e:
             print(f"[PEER] Erro ao solicitar arquivo do tracker: {resp}")
+
+    # funcao que processa os comandos do usuario
+    def handle_command(self, command):
+        parts = command.split()
+
+        if parts[0] == "exit":
+            # envia UNREGISTER ao tracker para remoção imediata (saída limpa)
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                    sock.connect((self.tracker_ip, self.tracker_port))
+                    sock.sendall(f"UNREGISTER {self.peer_ip} {self.peer_port}".encode())
+            except Exception:
+                pass
+
+            self.running = False # usado pra parar o loop em command_listener
+            print("[PEER] Desligando o peer.")
+            sys.exit(0)
+        
+        elif parts[0] == "list":
+            # Solicita ao tracker a lista atual de peers ativos
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                    sock.connect((self.tracker_ip, self.tracker_port))
+                    sock.sendall("LIST".encode())
+                    resp = sock.recv(4096).decode().strip() #decode converte bytes em texto e strip remove espacos e quebras de linha
+            except Exception as e:
+                print("[PEER] Erro ao pedir lista ao tracker:", e)
+                resp = ""
+
+            if resp:
+                self.peers_list = resp.split(",")
+            else:
+                self.peers_list = []
+
+            print("[PEER] Lista de peers registrados (atual):")
+            for peer in self.peers_list:
+                print(f" - {peer}")
+                
+        elif parts[0] == "search":
+            # Busca por arquivos na rede
+            if len(parts) < 2:
+                print("[PEER] Uso: search <file_name>")
+                return
+            
+            file_name = parts[1]
+            print(f"[PEER] Buscando por arquivos: {file_name}")
+            
+            self.request_file_peers(file_name)
+        elif parts[0] == "download":
+            if len(parts) < 2:
+                print("[PEER] Uso: download <file_name>")
+                return
+
+            file_name = parts[1]
+
+            # Verifica se já existe resultado de busca
+            if not hasattr(self, "search_results") or len(self.search_results) == 0:
+                print("[PEER] Nenhum resultado de busca. Use 'search <arquivo>' antes.")
+                return
+
+            # Pega o primeiro peer que tem o arquivo
+            target = self.search_results[0]
+            target_ip, target_port = target.split(":")
+
+            print(f"[PEER] Baixando {file_name} de {target_ip}:{target_port} ...")
+
+            self.download_file(file_name, target_ip, int(target_port))
+            return
+
+        else:
+            print(f"[PEER] Comando desconhecido: {command}")
+
+    # metodo para escutar comandos do usuario
+    def command_listener(self):
+        print("[PEER] Comandos disponiveis: list | search <file_name> | download <file_name> | exit")
+
+        while self.running:
+            try:
+                user_input = input("> ").strip()
+
+                if user_input == "":
+                    continue
+
+                self.handle_command(user_input)
+            
+            except EOFError:
+                print("[PEER] Entrada de dados encerrada.")
+                self.running = False
+            except KeyboardInterrupt:
+                print("\n[PEER] Interrompido pelo usuário.")
+                self.running = False
+
+    # thread para enviar heartbeats ao tracker periodicamente - 10 seg - (pra confirmar que esta ativo na rede)
+    def heartbeat_loop(self):
+        while True:
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                    sock.connect((self.tracker_ip, self.tracker_port)) # conexao unica, usada apenas para enviar heartbeat (a cada x seg)
+                    sock.sendall(f"HEARTBEAT {self.peer_ip} {self.peer_port}".encode())
+            except Exception:
+                pass
+            time.sleep(10) # envia heartbeat a cada 10 segundos
+
+    # Conecta ao tracker para registrar o peer
+    def connect_to_tracker(self):
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.connect((self.tracker_ip, self.tracker_port)) # conexao unica, usada apenas para iniciar o peer
+                
+                # Registra o peer no tracker
+                files_str = ",".join(self.processed_files)
+                register_command = f"REGISTER {self.peer_ip} {self.peer_port} {files_str}"
+                sock.sendall(register_command.encode('utf-8'))
+                print(f"[PEER] Registrado no tracker")
+
+                # Inicia a thread de heartbeat
+                hb_thread = threading.Thread(target=self.heartbeat_loop, daemon=True)
+                hb_thread.start()
+
+        except Exception as e:
+            print(f"[PEER] Erro ao conectar ao tracker: {e}")
 
 if __name__ == "__main__":
     # verificando se os argumentos foram passados corretamente
@@ -412,8 +390,6 @@ if __name__ == "__main__":
 
         # arquivos começam no argumento 3 em diante
         file_paths = sys.argv[3:]
-        # extrai apenas o nome, sem o caminho completo
-        #available_files = [os.path.basename(f) for f in data_dir_path]
 
         peer = Peer(peer_ip, peer_port, file_paths)
         peer.connect_to_tracker()

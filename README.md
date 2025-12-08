@@ -22,7 +22,7 @@ Este projeto implementa um sistema Peer-to-Peer (P2P) capaz de registrar peers e
     cd redes_P2P
 
 3 - Execute o tracker
-    python tracker.py
+    python3 tracker.py
 
 4 - Execute peer (quantos quiser)
 
@@ -51,4 +51,5 @@ Este projeto implementa um sistema Peer-to-Peer (P2P) capaz de registrar peers e
 
 # Possíveis melhorias
 
+Implementar o incremento de segurança, adicionando assinatura digital dos blocos compartilhados. Assim, será possível garantir a integridade e a autenticidade dos arquivos transmitidos entre pares, evitando alterações maliciosas e aumentando a confiabilidade do sistema P2P.
 

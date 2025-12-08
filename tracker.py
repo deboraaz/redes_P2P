@@ -94,6 +94,21 @@ def handle_peer_conection(client_socket, client_address):
                 peer_last_seen[peer_key] = time.time()
             #print(f"[TRACKER] Recebido heartbeat de {peer_key}")
             client_socket.sendall(b"OK")
+        elif command == "UPDATE":
+            ip = parts[1]
+            port = parts[2]
+            file_name = parts[3]
+            
+            peer_id = f"{ip}:{port}"
+
+            with PEERS_LOCK:
+                if peer_id in PEERS:
+                    if file_name not in PEERS[peer_id]["files"]:
+                        PEERS[peer_id]["files"].append(file_name)
+
+                    client_socket.sendall(b"OK")
+                else:
+                    client_socket.sendall(b"ERRO Peer nao registrado")
 
     except Exception as e:
         print(f"[TRACKER] Erro ao lidar com conexão do peer {client_address}: {e}")
@@ -125,6 +140,11 @@ def cleanup_dead_peers(peers, peer_last_seen, timeout=20):
 
 def start_tracker(host='127.0.0.1', port=5000):
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    
+    # Permitir reutilizar a porta do tracker imediatamente (nos testes estava demorando quase um minuto)
+    server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+    
     server_socket.bind((host, port))
     server_socket.listen(5)
 
