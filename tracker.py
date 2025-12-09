@@ -133,6 +133,22 @@ def cleanup_dead_peers(peers, peer_last_seen, timeout=20):
                     del peer_last_seen[peer_key]
         time.sleep(10) #verifica a cada 10 segundos
 
+# Responde a mensagens DISCOVER_TRACKER via UDP (para comunicacao entre maquinas distintas)
+def tracker_discovery_responder(ip, port=5500):
+    """
+    Responde a mensagens DISCOVER_TRACKER via UDP.
+    """
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    sock.bind(("0.0.0.0", port))
+
+    print(f"[TRACKER] Discovery UDP ativo em 0.0.0.0:{port}")
+
+    while True:
+        data, addr = sock.recvfrom(1024)
+        if data == b"DISCOVER_TRACKER":
+            msg = f"TRACKER_HERE {ip} 5000".encode()
+            sock.sendto(msg, addr)
 
 def start_tracker(host='127.0.0.1', port=5000):
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -161,5 +177,17 @@ def start_tracker(host='127.0.0.1', port=5000):
             print(f"[TRACKER] Erro ao aceitar conexão: {e}")
 
 if __name__ == "__main__":
-    start_tracker(host='127.0.0.1', port=5000)
+
+    # detecta automaticamente o IP da máquina
+    hostname = socket.gethostname()
+    local_ip = socket.gethostbyname(hostname)
+
+    print(f"[TRACKER] IP detectado: {local_ip}")
+
+    #start_tracker(host='127.0.0.1', port=5000)
     #tenho que usar 0.0.0.0 para aceitar conexoes externas
+    start_tracker(host='0.0.0.0', port=5000)
+
+    # thread de discovery UDP
+    t = threading.Thread(target=tracker_discovery_responder, args=(local_ip,), daemon=True)
+    t.start()
