@@ -44,12 +44,13 @@ def get_default_gateway_ip():
     finally:
         s.close()
 
-if TRACKER_IP == "auto":
+if TRACKER_IP == "auto" or TRACKER_IP is None:
     detected_ip = get_default_gateway_ip()
     if detected_ip:
         TRACKER_IP = detected_ip
     else:
-        print("[PEER] Tracker NÃO encontrado na rede.")
+        print("ERRO: peer não conseguiu encontrar o tracker na rede!")
+        print("Verifique se o tracker está rodando e se o discovery UDP está ativado.")
         sys.exit(1)
 
 class Peer:
