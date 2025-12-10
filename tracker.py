@@ -133,6 +133,16 @@ def cleanup_dead_peers(peers, peer_last_seen, timeout=20):
                     del peer_last_seen[peer_key]
         time.sleep(10) #verifica a cada 10 segundos
 
+def get_local_ip():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(("8.8.8.8", 80))
+        return s.getsockname()[0]
+    except:
+        return "127.0.0.1"
+    finally:
+        s.close()
+
 # Responde a mensagens DISCOVER_TRACKER via UDP (para comunicacao entre maquinas distintas)
 def tracker_discovery_responder(ip, port=5500):
     """
@@ -147,7 +157,8 @@ def tracker_discovery_responder(ip, port=5500):
     while True:
         data, addr = sock.recvfrom(1024)
         if data == b"DISCOVER_TRACKER":
-            msg = f"TRACKER_HERE {ip} 5000".encode()
+            local_ip = get_local_ip()
+            msg = f"TRACKER_HERE {local_ip} 5000".encode()
             sock.sendto(msg, addr)
 
 def start_tracker(host='127.0.0.1', port=5000):
@@ -179,15 +190,18 @@ def start_tracker(host='127.0.0.1', port=5000):
 if __name__ == "__main__":
 
     # detecta automaticamente o IP da máquina
-    hostname = socket.gethostname()
-    local_ip = socket.gethostbyname(hostname)
+    # hostname = socket.gethostname()
+    # local_ip = socket.gethostbyname(hostname)
 
-    print(f"[TRACKER] IP detectado: {local_ip}")
+    TRACKER_IP = get_local_ip()
+
+    # print(f"[TRACKER] IP detectado: {local_ip}")
+    print(f"[TRACKER] Iniciado em: {TRACKER_IP}:5000")
 
     #start_tracker(host='127.0.0.1', port=5000)
-    #tenho que usar 0.0.0.0 para aceitar conexoes externas
+    #tenho que usar 0.0.0.0 para t = threadingaceitar conexoes externas
     start_tracker(host='0.0.0.0', port=5000)
 
     # thread de discovery UDP
-    t = threading.Thread(target=tracker_discovery_responder, args=(local_ip,), daemon=True)
+    t = threading.Thread(target=tracker_discovery_responder, args=(TRACKER_IP,), daemon=True)
     t.start()

@@ -72,7 +72,7 @@ class Peer:
         self.data_dir.mkdir(exist_ok=True)
 
         # copiar arquivos informados para a pasta do peer
-        self.files = [] # caminho completo dos aquivos do peer
+        # self.files = [] # caminho completo dos aquivos do peer
 
         for src_file in data_dir_path:
             src_path = Path(src_file)
@@ -88,10 +88,10 @@ class Peer:
         self.processed_files = [Path(f).name for f in self.files]
 
         # dicionario para mapear nomes de arquivos aos seus caminhos completos
-        self.file_paths = {}
-        for f in self.files:
-            name = os.path.basename(f)
-            self.file_paths[name] = f
+        # self.file_paths = {}
+        # for f in self.files:
+        #     name = os.path.basename(f)
+        #     self.file_paths[name] = f
 
         #informacoes gerais da rede
         self.tracker_ip = TRACKER_IP
