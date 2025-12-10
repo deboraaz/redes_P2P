@@ -2,6 +2,7 @@ import socket
 import threading
 import time #para uso do heartbeat
 
+
 # Dicionário global para armazenar informações dos peers
 PEERS = {} # estrutura chave valor: "ip:port" : {"ip": ip, "port": port, "files": []}
 peer_last_seen = {} # estrutura chave valor: "ip:port" : timestamp do ultimo heartbeat recebido
