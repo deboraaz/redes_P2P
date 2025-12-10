@@ -11,7 +11,8 @@ import math
 import queue
 
 # informacoes do tracker (globais pra nao precisar ficar repetindo)
-TRACKER_IP = '127.0.0.1'
+# TRACKER_IP = '127.0.0.1'
+TRACKER_IP = '192.168.15.11'
 TRACKER_PORT = 5000
 
 TAM_CHUNK = 50 #tamanho pequeno pra testar com arquivos pequenos e ter pelo menos 3 chunks
