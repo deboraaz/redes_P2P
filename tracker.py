@@ -157,8 +157,8 @@ def tracker_discovery_responder(ip, port=5500):
     while True:
         data, addr = sock.recvfrom(1024)
         if data == b"DISCOVER_TRACKER":
-            local_ip = get_local_ip()
-            msg = f"TRACKER_HERE {local_ip} 5000".encode()
+            #local_ip = get_local_ip()
+            msg = f"TRACKER_HERE {addr[0]} 5000".encode()
             sock.sendto(msg, addr)
 
 def start_tracker(host='127.0.0.1', port=5000):
@@ -200,8 +200,9 @@ if __name__ == "__main__":
 
     #start_tracker(host='127.0.0.1', port=5000)
     #tenho que usar 0.0.0.0 para t = threadingaceitar conexoes externas
-    start_tracker(host='0.0.0.0', port=5000)
 
     # thread de discovery UDP
     t = threading.Thread(target=tracker_discovery_responder, args=(TRACKER_IP,), daemon=True)
     t.start()
+
+    start_tracker(host='0.0.0.0', port=5000)

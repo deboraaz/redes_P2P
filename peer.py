@@ -12,7 +12,7 @@ import queue
 
 # informacoes do tracker (globais pra nao precisar ficar repetindo)
 # TRACKER_IP = '127.0.0.1'
-TRACKER_IP = os.getenv("TRACKER_IP")
+TRACKER_IP = os.getenv("TRACKER_IP", "auto")
 
 TRACKER_PORT = 5000
 
@@ -29,7 +29,7 @@ def get_default_gateway_ip():
     s.settimeout(2)
 
     try:
-        s.sendto(b"DISCOVER_TRACKER", ("<broadcast>", 5500))
+        s.sendto(b"DISCOVER_TRACKER", ("255.255.255.255", 5500))
 
         data, addr = s.recvfrom(1024)
         if data.startswith(b"TRACKER_HERE"):
@@ -60,7 +60,7 @@ class Peer:
     def __init__(self, peer_ip: str, peer_port: int, data_dir_path: str):
 
         #informacoes do proprio peer
-        self .peer_ip = peer_ip
+        self.peer_ip = peer_ip
         self.peer_port = peer_port
 
         # criacao do diretorio dos peers
@@ -72,7 +72,7 @@ class Peer:
         self.data_dir.mkdir(exist_ok=True)
 
         # copiar arquivos informados para a pasta do peer
-        # self.files = [] # caminho completo dos aquivos do peer
+        self.files = [] # caminho completo dos aquivos do peer
 
         for src_file in data_dir_path:
             src_path = Path(src_file)
@@ -88,10 +88,10 @@ class Peer:
         self.processed_files = [Path(f).name for f in self.files]
 
         # dicionario para mapear nomes de arquivos aos seus caminhos completos
-        # self.file_paths = {}
-        # for f in self.files:
-        #     name = os.path.basename(f)
-        #     self.file_paths[name] = f
+        self.file_paths = {}
+        for f in self.files:
+            name = os.path.basename(f)
+            self.file_paths[name] = f
 
         #informacoes gerais da rede
         self.tracker_ip = TRACKER_IP
@@ -109,7 +109,7 @@ class Peer:
         self.hb_thread.start()
 
         # lista de caminhos completos
-        self.files = data_dir_path  
+        # self.files = data_dir_path  
 
         # flag para desligar o peer quando o usuário digitar "exit"
         self.running = True
@@ -122,7 +122,7 @@ class Peer:
         server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
 
-        server_socket.bind((self.peer_ip, self.peer_port))
+        server_socket.bind(("0.0.0.0", self.peer_port))
         server_socket.listen(5)
 
         while True:
