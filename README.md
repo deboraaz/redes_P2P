@@ -54,13 +54,3 @@ Este projeto implementa um sistema Peer-to-Peer (P2P) capaz de registrar peers e
 Implementar o incremento de segurança, adicionando assinatura digital dos blocos compartilhados. Assim, será possível garantir a integridade e a autenticidade dos arquivos transmitidos entre pares, evitando alterações maliciosas e aumentando a confiabilidade do sistema P2P.
 
 Adicionar "validade" na lista de peers que contém um arquivo.
-
-pq duas threads de heartbeat?
-
-python3 tracker.py
-python3 peer.py auto 6001 arquivos/*
-python3 peer.py auto 6002 arquivos/arq3.txt
-python3 peer.py auto 6003 arquivos/arq5.txt arquivos/arq6.txt arquivos/arq7.txt
-python3 peer.py auto 6004 arquivos/*
-python3 peer.py auto 6005 arquivos/img.png arquivos/vid.mp4
-python3 peer.py auto 6006 arquivos/arq3.txt

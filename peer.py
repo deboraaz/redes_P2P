@@ -11,47 +11,12 @@ import math
 import queue
 
 # informacoes do tracker (globais pra nao precisar ficar repetindo)
-# TRACKER_IP = '127.0.0.1'
-TRACKER_IP = os.getenv("TRACKER_IP", "auto")
-
+TRACKER_IP = '127.0.0.1'
 TRACKER_PORT = 5000
 
 TAM_CHUNK = 50 #tamanho pequeno pra testar com arquivos pequenos e ter pelo menos 3 chunks
 
 #TAM_CHUNK = 4096 # tam dos chunks (blocos) do arquivo a serem enviados
-
-def get_default_gateway_ip():
-    """
-    Envia broadcast UDP e espera a resposta do tracker.
-    """
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-    s.settimeout(2)
-
-    try:
-        s.sendto(b"DISCOVER_TRACKER", ("255.255.255.255", 5500))
-
-        data, addr = s.recvfrom(1024)
-        if data.startswith(b"TRACKER_HERE"):
-            _, tracker_ip, tracker_port = data.decode().split()
-            print(f"[PEER] Tracker encontrado automaticamente: {tracker_ip}:{tracker_port}")
-            return tracker_ip
-
-    except Exception as e:
-        print("[PEER] Falha no discovery:", e)
-        return None
-
-    finally:
-        s.close()
-
-if TRACKER_IP == "auto" or TRACKER_IP is None:
-    detected_ip = get_default_gateway_ip()
-    if detected_ip:
-        TRACKER_IP = detected_ip
-    else:
-        print("ERRO: peer não conseguiu encontrar o tracker na rede!")
-        print("Verifique se o tracker está rodando e se o discovery UDP está ativado.")
-        sys.exit(1)
 
 class Peer:
     # Objeto: Representa um peer na rede P2P, capaz de se registrar com o tracker e obter a lista de outros peers
@@ -59,8 +24,8 @@ class Peer:
 
     def __init__(self, peer_ip: str, peer_port: int, data_dir_path: str):
 
-        #informacoes do proprio peer
-        self.peer_ip = peer_ip
+        #informacoes dos dados do proprio peer
+        self .peer_ip = peer_ip
         self.peer_port = peer_port
 
         # criacao do diretorio dos peers
@@ -72,8 +37,7 @@ class Peer:
         self.data_dir.mkdir(exist_ok=True)
 
         # copiar arquivos informados para a pasta do peer
-        self.files = [] # caminho completo dos aquivos do peer
-
+        self.files = []
         for src_file in data_dir_path:
             src_path = Path(src_file)
 
@@ -84,10 +48,11 @@ class Peer:
             else:
                 print(f"[WARN] Arquivo não encontrado: {src_path}")
         
-        # nomes dos arquivos (sem caminho completo)
+        # nomes dos arquivos
         self.processed_files = [Path(f).name for f in self.files]
 
         # dicionario para mapear nomes de arquivos aos seus caminhos completos
+        # self.file_paths = {Path(f).name: f for f in self.files}
         self.file_paths = {}
         for f in self.files:
             name = os.path.basename(f)
@@ -99,31 +64,41 @@ class Peer:
         self.peers_list = [] #lista de pares na rede
         self.search_results = [] # armazena resultados da busca por arquivos
 
-        # iniciar o servidor (para servir arquivos a outros peers)
         self.server_thread = threading.Thread(target=self.file_server) #thread para o servidor de arquivos
         self.server_thread.daemon = True
         self.server_thread.start()
 
         # iniciar o heartbeat assim que o peer é criado 
-        self.hb_thread = threading.Thread(target=self.heartbeat_loop, daemon=True)
-        self.hb_thread.start()
+        # hb_thread = threading.Thread(target=self.heartbeat_loop, daemon=True)
 
         # lista de caminhos completos
         # self.files = data_dir_path  
 
+        # nomes dos arquivos
+        # self.processed_files = [os.path.basename(f) for f in self.files]
+
+        # dicionario para mapear nomes de arquivos aos seus caminhos completos
+        # self.file_paths = {os.path.basename(f): f for f in self.files}
+
         # flag para desligar o peer quando o usuário digitar "exit"
+
+        self.hb_thread = threading.Thread(target=self.heartbeat_loop, daemon=True)
+        self.hb_thread.start()
+
         self.running = True
 
     def file_server(self):
-        # Servidor TCP que aceita requisições de arquivos de outros peers
+        # Servidor para compartilhar arquivos com outros peers
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         
         # Permite reuso imediato da porta (evita TIME_WAIT)
         server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
 
-        server_socket.bind(("0.0.0.0", self.peer_port))
+        server_socket.bind((self.peer_ip, self.peer_port))
         server_socket.listen(5)
+
+        #print(f"[PEER] Servidor de arquivos iniciado em {self.peer_ip}:{self.peer_port}. Aguardando conexões... ")
 
         while True:
             try:
@@ -210,7 +185,7 @@ class Peer:
         for i in range(num_chunks):
             q.put(i)
 
-        # 4 — Worker de download (para cada peer)
+        # 4 — Worker de download
         def worker(peer_addr):
             ip, port = peer_addr.split(":")
             port = int(port)
@@ -225,11 +200,9 @@ class Peer:
                 size_request = TAM_CHUNK
 
                 try:
-                    # Fazer requisição ao peer
                     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                     s.connect((ip, port))
                     s.sendall(f"GET {file_name} {offset} {size_request}".encode())
-                    # Receber dados
                     data = s.recv(size_request)
                     s.close()
 
@@ -260,7 +233,7 @@ class Peer:
 
         print(f"[PEER] Download completo: {file_name}")
 
-        # Atualizar o dicionário de caminhos de arquivos
+        # atualizar o dicionario de caminhos de arquivos
         self.file_paths[file_name] = str(save_path)
 
         # Avisar ao tracker que agora possui o arquivo
@@ -270,6 +243,7 @@ class Peer:
                 sock.sendall(f"UPDATE {self.peer_ip} {self.peer_port} {file_name}".encode())
         except Exception as e:
             print("[PEER] Falha ao atualizar o tracker:", e)
+
 
     def request_file_peers(self, file_name):
         print(f"[PEER] Requisitando lista de peers que possuem o arquivo: {file_name}")
@@ -422,20 +396,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     try:
-        # peer_ip = sys.argv[1]
-        # peer_port = int(sys.argv[2])
-        # se o usuário passar 'auto', detectamos automaticamente o IP da máquina
-        if sys.argv[1] == "auto":
-            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            try:
-                # conecta sem enviar nada para descobrir o IP usado na LAN
-                s.connect(("8.8.8.8", 80))
-                peer_ip = s.getsockname()[0]
-            finally:
-                s.close()
-        else:
-            peer_ip = sys.argv[1]
-
+        peer_ip = sys.argv[1]
         peer_port = int(sys.argv[2])
 
         # arquivos começam no argumento 3 em diante
