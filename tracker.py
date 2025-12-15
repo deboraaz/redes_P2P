@@ -159,7 +159,7 @@ def tracker_discovery_responder(ip, port=5500):
             msg = f"TRACKER_HERE {addr[0]} 5000".encode()
             sock.sendto(msg, addr)
 
-def start_tracker(host='0.0.0.0', port=5000):
+def start_tracker(host='127.0.0.1', port=5000):
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     
     # Permitir reutilizar a porta do tracker imediatamente (nos testes estava demorando quase um minuto)
