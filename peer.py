@@ -72,20 +72,6 @@ class Peer:
         self.server_thread.daemon = True
         self.server_thread.start()
 
-        # iniciar o heartbeat assim que o peer é criado 
-        # hb_thread = threading.Thread(target=self.heartbeat_loop, daemon=True)
-
-        # lista de caminhos completos
-        # self.files = data_dir_path  
-
-        # nomes dos arquivos
-        # self.processed_files = [os.path.basename(f) for f in self.files]
-
-        # dicionario para mapear nomes de arquivos aos seus caminhos completos
-        # self.file_paths = {os.path.basename(f): f for f in self.files}
-
-        # flag para desligar o peer quando o usuário digitar "exit"
-
         self.hb_thread = threading.Thread(target=self.heartbeat_loop, daemon=True)
         self.hb_thread.start()
 
@@ -198,6 +184,7 @@ class Peer:
 
             while not q.empty():
                 try:
+                    # 
                     idx = q.get_nowait()
                 except:
                     return

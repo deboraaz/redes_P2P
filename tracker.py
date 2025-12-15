@@ -139,16 +139,14 @@ def get_local_ip():
     try:
         s.connect(("8.8.8.8", 80))
         return s.getsockname()[0]
-    except:
-        return "127.0.0.1"
+    # except:
+    #     return "127.0.0.1"
     finally:
         s.close()
 
 # Responde a mensagens DISCOVER_TRACKER via UDP (para comunicacao entre maquinas distintas)
 def tracker_discovery_responder(ip, port=5500):
-    """
-    Responde a mensagens DISCOVER_TRACKER via UDP.
-    """
+
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.bind(("0.0.0.0", port))
@@ -158,11 +156,10 @@ def tracker_discovery_responder(ip, port=5500):
     while True:
         data, addr = sock.recvfrom(1024)
         if data == b"DISCOVER_TRACKER":
-            #local_ip = get_local_ip()
             msg = f"TRACKER_HERE {addr[0]} 5000".encode()
             sock.sendto(msg, addr)
 
-def start_tracker(host='127.0.0.1', port=5000):
+def start_tracker(host='0.0.0.0', port=5000):
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     
     # Permitir reutilizar a porta do tracker imediatamente (nos testes estava demorando quase um minuto)
@@ -206,4 +203,4 @@ if __name__ == "__main__":
     t = threading.Thread(target=tracker_discovery_responder, args=(TRACKER_IP,), daemon=True)
     t.start()
 
-    start_tracker(host='0.0.0.0', port=5000)
+    start_tracker(host='0.0.0.0', port=5000) #0.0.0.0 permite connexoes de qualquer ip

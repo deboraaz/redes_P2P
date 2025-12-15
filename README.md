@@ -29,9 +29,20 @@ Este projeto implementa um sistema Peer-to-Peer (P2P) capaz de registrar peers e
     python3 peer.py <endereço_ip> <porta> <lista_de_arquivos>
 
     Exemplo usando os arquivos da pasta "arquivos" 
-    python3 peer.py 127.0.0.1 6001 arquivos/arq1.txt arquivos/arq2.txt
-    python3 peer.py 127.0.0.1 6002 arquivos/arq3.txt
-    python3 peer.py 127.0.0.1 6003 arquivos/arq5.txt arquivos/arq7.txt
+    python3 peer.py 192.168.15.11 6001 arquivos/arq1.txt arquivos/arq2.txt
+    python3 peer.py 192.168.15.11 6002 arquivos/arq3.txt
+    python3 peer.py 192.168.15.11 6003 arquivos/arq5.txt arquivos/arq7.txt
+
+    python3 peer.py 192.168.15.11 6001 arquivos/*
+    python3 peer.py 192.168.15.11 6002 arquivos/arq1.txt
+    python3 peer.py 192.168.15.11 6003 arquivos/arq1.txt
+    python3 peer.py 192.168.15.11 6004 arquivos/arq1.txt
+    python3 peer.py 192.168.15.11 6005 arquivos/arq1.txt
+    python3 peer.py 192.168.15.11 6006 arquivos/arq1.txt
+    python3 peer.py 192.168.15.11 6007 arquivos/arq1.txt
+    python3 peer.py 192.168.15.11 6008 arquivos/arq1.txt
+    python3 peer.py 192.168.15.11 6009 arquivos/arq1.txt
+    python3 peer.py 192.168.15.11 6010 arquivos/arq1.txt
 
 # Funcionalidades implementadas
 - Tracker
