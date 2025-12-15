@@ -9,6 +9,9 @@ import time #para o uso do heartbeat
 import shutil #para manipulação de arquivos (foi usado shutil.copy para copia dos arquivos da pasta de exemplo para o peer)
 import math
 import queue
+import csv
+
+from desempenho import log_download
 
 # informacoes do tracker (globais pra nao precisar ficar repetindo)
 # TRACKER_IP = '127.0.0.1'
@@ -159,6 +162,8 @@ class Peer:
 
     def download_file(self, file_name, peer_ip, peer_port):
 
+        inicio = time.time()
+
         peers = self.search_results[:]  # lista de peers que têm o arquivo
         if not peers:
             print("[PEER] Nenhum peer disponível para baixar.")
@@ -233,6 +238,14 @@ class Peer:
                     f.write(chunk)
 
         print(f"[PEER] Download completo: {file_name}")
+
+        fim = time.time()
+        tempo_total = fim - inicio
+
+        tamanho = os.path.getsize(save_path)
+        n_peers = len(self.search_results)
+
+        log_download(file_name, tamanho, n_peers, tempo_total)
 
         # atualizar o dicionario de caminhos de arquivos
         self.file_paths[file_name] = str(save_path)
